@@ -10,7 +10,8 @@ from douban.utils.avos_manager import *
 class DoubanPipeline(object):
     def __init__(self):
         self.avosManager = AvosManager()
-        self.res_dict = self.avosManager.getnfdict("activities")
+        #self.res_dict = self.avosManager.getnfdict("activities")
+        self.res_dict = {}
 
     #By Hushuying,generate footprint
     def gen_footprint(self,item):
@@ -24,6 +25,11 @@ class DoubanPipeline(object):
     def process_item(self, item, spider):
         if spider.name not in ['damai','douban']:
             return item
+
+        #init res_dict
+        if len(self.res_dict) == 0:
+            self.res_dict = self.avosManager.getnfdict("activities")
+
         print item['name']
         dataDict = {"name":item['name'],"date":item['date'],
                     "start_time":item['start_time'],"end_time":item['end_time'],"ticket":item['ticket'],
@@ -53,7 +59,8 @@ class DoubanPipeline(object):
 class DbMoviePipeline(object):
     def __init__(self):
         self.avosManager = AvosManager()
-        self.res_dict = self.avosManager.getnfdict("dbmovie")
+        #self.res_dict = self.avosManager.getnfdict("dbmovie")
+        self.res_dict = {}
 
      #By Hushuying,generate footprint
     def gen_footprint(self,item):
@@ -67,6 +74,11 @@ class DbMoviePipeline(object):
     def process_item(self, item, spider):
         if spider.name not in ['dbmovie']:
             return item
+
+        #init res_dict
+        if len(self.res_dict) == 0:
+            self.res_dict = self.avosManager.getnfdict("dbmovie")
+
         print item['source']
         dataDict = {"name":item['name'],"score":item['score'],
                     "summary":item['summary'],
@@ -95,21 +107,27 @@ class DbMoviePipeline(object):
 class DzdpPipeline(object):
     def __init__(self):
         self.avosManager = AvosManager()
-        self.res_dict = self.avosManager.getnfdict("dzdp")
+        #self.res_dict = self.avosManager.getnfdict("dzdp")
+        self.res_dict = {}
 
      #By Hushuying,generate footprint
     def gen_footprint(self,item):
         str_item = str(item['name'])+\
                    str(item['score'])+\
                    str(item['address'])+\
-                   str(item['popularity'])
+                   str(item['shopname'])
         return self.avosManager.calMD5(str_item)
 
     def process_item(self, item, spider):
         if spider.name not in ['dzdp']:
             return item
+
+        #init res_dict
+        if len(self.res_dict) == 0:
+            self.res_dict = self.avosManager.getnfdict("dzdp")
+
         print item['name']
-        dataDict = {"name":item['name'],"score":item['score'],
+        dataDict = {"name":item['name'],"shopname":item['shopname'],"score":item['score'],
                     "address":item['address'],
                     "popularity":item['popularity'],
                     "source" : item['source']}
@@ -135,7 +153,8 @@ class DzdpPipeline(object):
 class WdjPipeline(object):
     def __init__(self):
         self.avosManager = AvosManager()
-        self.res_dict = self.avosManager.getnfdict("appCategory")
+        #self.res_dict = self.avosManager.getnfdict("appCategory")
+        self.res_dict = {}
 
      #By Hushuying,generate footprint
     def gen_footprint(self,item):
@@ -146,6 +165,11 @@ class WdjPipeline(object):
     def process_item(self, item, spider):
         if spider.name not in ['wdj']:
             return item
+
+        #init res_dict
+        if len(self.res_dict) == 0:
+            self.res_dict = self.avosManager.getnfdict("appCategory")
+
         print item['source']
         dataDict = {"name":item['name'],"category":item['category']}
 
@@ -169,7 +193,8 @@ class WdjPipeline(object):
 class AppStorePipeline(object):
     def __init__(self):
         self.avosManager = AvosManager()
-        self.res_dict = self.avosManager.getnfdict("appstore")
+        #self.res_dict = self.avosManager.getnfdict("appstore")
+        self.res_dict = {}
 
      #By Hushuying,generate footprint
     def gen_footprint(self,item):
@@ -181,6 +206,10 @@ class AppStorePipeline(object):
     def process_item(self, item, spider):
         if spider.name not in ['appstore']:
             return item
+
+        if len(self.res_dict) == 0:
+            self.res_dict = self.avosManager.getnfdict("appstore")
+
         print item['name']
         dataDict = {"name":item['name'],"category":item['category'],"source":item['source']}
 

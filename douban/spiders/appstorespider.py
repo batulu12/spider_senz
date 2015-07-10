@@ -8,6 +8,7 @@ from scrapy.http import Request
 from douban.items import AppStoreItem
 from douban.utils.util_opt import *
 from selenium import webdriver
+import re
 
 
 
@@ -26,10 +27,10 @@ class AppStoreSpider(CrawlSpider):
 
     def init_start_url(self):
         #报刊杂志二级分类
-        letter_list=['A','B','C','D','E','F','G',
+        letter_list=['','A','B','C','D','E','F','G',
                      'H','I','J','K','L','M','N',
                      'O','P','Q','R','S','T','U',
-                     'V','W','X','Y','Z']
+                     'V','W','X','Y','Z','#']
         url='https://itunes.apple.com/cn/genre/ios/id36?mt=8'
         newpage=get_source(url)
         soup=BeautifulSoup(newpage)
@@ -41,7 +42,10 @@ class AppStoreSpider(CrawlSpider):
                 li_list = seclevel_list[0].find_all('li')
                 for li in li_list:
                     for letter in letter_list:
-                        key_url = li.a.get('href')+'&letter='+letter
+                        if letter == '':
+                            key_url = li.a.get('href')
+                        else:
+                            key_url = li.a.get('href')+'&letter='+letter
                         category = first_category+'/'+li.get_text()
                         self.category_dict[key_url] = category
                         self.start_urls.append(key_url)
@@ -52,18 +56,24 @@ class AppStoreSpider(CrawlSpider):
                 li_list = seclevel_list[1].find_all('li')
                 for li in li_list:
                     for letter in letter_list:
-                        key_url = li.a.get('href')+'&letter='+letter
+                        if letter != '':
+                            key_url = li.a.get('href')+'&letter='+letter
+                        else:
+                            key_url = li.a.get('href')
                         category = first_category+'/'+li.get_text()
                         self.category_dict[key_url] = category
                         self.start_urls.append(key_url)
-                        print 'url % s ,category %s' %(li.a.get('href')+'&letter='+letter,first_category+'/'+li.get_text())
+                        print 'url % s ,category %s' %(key_url,category)
             else:
                 for letter in letter_list:
-                     key_url = url.get('href')+'&letter='+letter
+                     if letter == '':
+                         key_url = url.get('href')
+                     else:
+                         key_url = url.get('href')+'&letter='+letter
                      category = url.get_text()
                      self.category_dict[key_url] = category
                      self.start_urls.append(key_url)
-                     print 'url %s,category %s'%(url.get('href')+'&letter='+letter,url.get_text())
+                     print 'url %s,category %s'%(key_url,category)
 
     def parse(self, response):
         if self.category_dict.has_key(response.url):
@@ -120,8 +130,13 @@ if __name__ == "__main__":
     newpage=get_source("https://itunes.apple.com/cn/genre/ios-bao-kan-za-zhi-lu-you-yu-de-yu/id13029?mt=8&letter=T")
     soup=BeautifulSoup(newpage)
     app_list = soup.find(attrs={'id':'selectedcontent'}).find_all('li')
+    id_re = re.compile(r'https\:\/\/itunes\.apple\.com\/cn\/app\/\S+\/id(\d+)\?mt=8')
+
     for app in app_list:
         print app.a.get_text()
+        print app.a.get('href')
+        id = re.findall(id_re,app.a.get('href'))
+        print id
     # seclevel_list = soup.find_all(attrs={'class':'list top-level-subgenres'})
     # for url in seclevel_list:
     #     li_list = url.find_all('li')

@@ -9,6 +9,7 @@ from scrapy.http import Request
 from douban.items import  DzdpItem
 from douban.utils.util_opt import *
 from json import *
+import socket
 import time
 import requests
 from scrapy.settings import Settings
@@ -29,6 +30,8 @@ headers = { "User-Agent": " Mozilla/5.0 (Windows NT 6.1; WOW64; rv:34.0) Gecko/2
 class DzdpSpider(CrawlSpider):
     name = 'dzdp'
 
+    agent_list = []
+
     def __init__(self):
         self.start_urls = []
         self.mcid={'shanghai':1,'beijing':2,'guangzhou':4,'shenzhen':7,'wuhan':16,
@@ -43,11 +46,25 @@ class DzdpSpider(CrawlSpider):
                   u'大连':'dalian'}
         self.host = 'http://t.dianping.com'
         self.init_start_url()
+        self.init_agent()
         # dir_path = os.path.abspath(os.path.dirname(sys.argv[0]))
         # settings = Settings({'LOG_FILE': dir_path+'/'+self.name+'.log'})
         # settings.overrides['LOG_FILE'] = {'Accept':'text/heml,application/xhtml+xml;q=0.9,*/*;q=0.8','Accept-Language':'ch',}
 
+    def init_agent(self):
+        dir_path = os.path.abspath(os.path.dirname(sys.argv[0]))
+        file_handler = open(dir_path+'/download_middleware/agent_server')
+        proxy_agent_list = file_handler.readlines()
 
+        for proxy_agent in proxy_agent_list:
+            proxy_line = proxy_agent.strip('\r\n').split(' ')
+            if len(proxy_line) > 1:
+                ip = proxy_line[0]
+                port = proxy_line[1]
+
+                if self.proxy_verify(ip,port) == True:
+                   url = 'http://%s:%s' % (ip,port)
+                   self.agent_list.append(url)
 
     def init_start_url(self):
 
@@ -59,6 +76,7 @@ class DzdpSpider(CrawlSpider):
     def parse(self, response):
         soup=BeautifulSoup(response.body)
         allItem=soup.find_all(attrs={'class':'tg-floor-title'})
+        proxies = {}
 
         if len(allItem) > 0:
             #list page
@@ -80,7 +98,14 @@ class DzdpSpider(CrawlSpider):
                         request.meta['city_id'] =''
                     yield request
 
-            next_page = soup.find_all(attrs={'class':'tg-paginator-next'})[0].get('href')
+            next_page_list = soup.find_all(attrs={'class':'tg-paginator-next'})
+            if len(next_page_list) == 1:
+                next_page = next_page_list[0].get('href')
+            elif len(next_page_list) == 2:
+                next_page = next_page_list[1].get('href')
+            else:
+                next_page = ''
+
             #http://t.dianping.com/list/beijing-category_1?pageIndex=1
             catergorycn_re = re.compile(r'(http\:\/\/t\.dianping\.com\/list\/\w+-category_1)\.*')
             catergory_list = re.findall(catergorycn_re,response.url)
@@ -91,54 +116,106 @@ class DzdpSpider(CrawlSpider):
                 yield Request(next_page, callback=self.parse)
             #detail page
         else:
-            title = response.meta['name']
+            shop_name = response.meta['name']
+            title = soup.find('title').get_text().strip().encode('utf-8')
             score = soup.find(attrs={'class':'star-rate'}).get_text().strip().encode('utf-8')
             print title
             print score
 
+            address = ''
             #get the address
-            name_id = response.meta['name_id']
-            print name_id
-            if self.mcid.has_key(response.meta['city_id']):
-                city_id = self.mcid[response.meta['city_id']]
-                print city_id
-                pageurl = "http://t.dianping.com/ajax/dealGroupShopDetail?" \
-                      "dealGroupId=%s&cityId=%s&action=shops&page=%s"%(name_id,city_id,"1")
-                session = requests.session()
-                jsonpage =(session.get(pageurl,headers=headers,timeout = 3)).text
-                json_dict = JSONDecoder().decode(jsonpage)
-                time.sleep(5)
-                if json_dict['msg'].has_key('pages'):
-                    pages = json_dict['msg']['pages']
-                    address = ''
-                    for adr in json_dict['msg']['shops']:
-                            address = address + adr['address']+';'
-
-                    for page in range(2,pages+1):
-                        pageurl = "http://t.dianping.com/ajax/dealGroupShopDetail?" \
-                          "dealGroupId=%s&cityId=%s&action=shops&page=%s"%(name_id,city_id,str(page))
-                        jsonpage =(session.get(pageurl,headers=headers,timeout = 3)).text
-                        json_dict = JSONDecoder().decode(jsonpage)
-                        time.sleep(5)
+            try:
+                name_id = response.meta['name_id']
+                print name_id
+                if self.mcid.has_key(response.meta['city_id']):
+                    city_id = self.mcid[response.meta['city_id']]
+                    print city_id
+                    pageurl = "http://t.dianping.com/ajax/dealGroupShopDetail?" \
+                          "dealGroupId=%s&cityId=%s&action=shops&page=%s"%(name_id,city_id,"1")
+                    session = requests.session()
+                    ind = random.randint(1,len(self.agent_list))
+                    proxies['http'] = self.agent_list[ind]
+                    jsonpage =(session.get(pageurl,headers=headers,timeout = 3,proxies=proxies)).text
+                    json_dict = JSONDecoder().decode(jsonpage)
+                    time.sleep(5)
+                    if json_dict['msg'].has_key('pages'):
+                        pages = json_dict['msg']['pages']
+                        address = ''
                         for adr in json_dict['msg']['shops']:
-                            address = address +adr['address']+';'
-                else:
-                    address = json_dict['msg']['shops']
-            else:
-                address = ''
+                                address = address + adr['address']+';'
 
+                        for page in range(2,pages+1):
+                            pageurl = "http://t.dianping.com/ajax/dealGroupShopDetail?" \
+                              "dealGroupId=%s&cityId=%s&action=shops&page=%s"%(name_id,city_id,str(page))
+                            jsonpage =(session.get(pageurl,headers=headers,timeout = 3,proxies=proxies)).text
+                            json_dict = JSONDecoder().decode(jsonpage)
+                            time.sleep(5)
+                            for adr in json_dict['msg']['shops']:
+                                address = address +adr['address']+';'
+                    else:
+                        address = json_dict['msg']['shops']
+                else:
+                    address = ''
+            except Exception,e:
+                print 'address error'
 
             item = DzdpItem()
             item['name'] = title
             item['score'] = score
             item['address'] = address
+            item['shopname'] = shop_name
             print address
             item['popularity'] = ''
             item['source'] = DzdpSpider.__name__
             yield item
         pass
 
+    def proxy_verify(self,domain,port):
+            print "正在验证：%s,%s" % (domain,port)
+
+            #验证代理的可用性
+            #创建一个TCP连接套接字
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #设置10超时
+            sock.settimeout(10)
+            try:
+                start = time.clock()
+
+                #连接代理服务器
+                sock.connect((domain, int(port)))
+                last_time = int((time.clock() - start) * 1000)
+                sock.close()
+                print "%s,%s 验证通过，响应时间：%d ms." % (domain,port,last_time)
+                return True
+            except Exception, e:
+                print "%s,%s 验证失败." % (domain,port)
+                return False
+
+
 if __name__ == "__main__":
+        url = 'http://t.dianping.com/deal/6390770'
+        newpage=get_source(url)
+        soup=BeautifulSoup(newpage,"html.parser")
+        score = soup.find('title').get_text().strip().encode('utf-8')
+        print score
+
+        url= 'http://t.dianping.com/list/beijing-category_1?pageIndex=2'
+        newpage=get_source(url)
+        soup=BeautifulSoup(newpage,"html.parser")
+        # next_page = soup.find_all(attrs={'class':'tg-paginator-next'})[1].get('href')
+        # catergorycn_re = re.compile(r'(http\:\/\/t\.dianping\.com\/list\/\w+-category_1)\.*')
+        # catergory_list = re.findall(catergorycn_re,url)
+        # print catergory_list[0]
+        # print next_page
+
+        next_page_list = soup.find_all(attrs={'class':'tg-paginator-next'})
+        if len(next_page_list) == 1:
+            next_page = next_page_list[0].get('href')
+        elif len(next_page_list) == 2:
+            next_page = next_page_list[1].get('href')
+        else:
+            next_page = ''
+        print next_page
         # br = webdriver.PhantomJS()
         # br.get('http://movie.douban.com/')
         # time.sleep(2.5)
@@ -167,13 +244,33 @@ if __name__ == "__main__":
         # city = re.findall(city_re,'http://t.dianping.com/list/beijing-category_1')
         # name_re = re.compile(r'http\:\/\/t\.dianping\.com\/deal\/(\d+)')
         # name = re.findall(name_re,'http://t.dianping.com/deal/6390770')
-
+        # dir_path = os.path.abspath(os.path.dirname(sys.argv[0]))
+        # file_handler = open('/Users/batulu/PycharmProjects/spider/douban/download_middleware/agent_server')
+        # proxy_agent_list = file_handler.readlines()
+        # agent_list = []
+        # for proxy_agent in proxy_agent_list:
+        #     proxy_line = proxy_agent.strip('\r\n').split(' ')
+        #     if len(proxy_line) > 1:
+        #         ip = proxy_line[0]
+        #         port = proxy_line[1]
+        #
+        #         if proxy_verify(ip,port) == True:
+        #            url = 'http://%s:%s' % (ip,port)
+        #            agent_list.append(url)
+        #
+        # ind = random.randint(1,len(agent_list))
+        # proxies = {}
+        # proxies['http'] = agent_list[ind]
         #get the address
         session = requests.session()
         pageurl = "http://t.dianping.com/ajax/dealGroupShopDetail?" \
-              "dealGroupId=%s&cityId=%s&action=shops&page=%s"%("5018451","2","1")
+              "dealGroupId=%s&cityId=%s&action=shops&page=%s"%("6156644","4","1")
+        #http://t.dianping.com/ajax/dealGroupShopDetail?dealGroupId=6156644&cityId=4&action=shops&page=1&regionId=22
         #jsonpage =get_source(pageurl)
         print pageurl
+        # proxies = {
+        #       "http":"http://221.176.14.72:80",
+        # }
         jsonpage =session.get(pageurl,headers=headers,timeout = 3).text
         print jsonpage
         json_dict = JSONDecoder().decode(jsonpage)

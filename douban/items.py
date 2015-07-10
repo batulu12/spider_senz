@@ -31,7 +31,8 @@ class DbMoiveItem(Item):
     source = Field()
 
 class DzdpItem(Item):
-    name=Field()#餐厅名称
+    name=Field()#标题名称
+    shopname = Field() #餐厅名称
     score=Field()#评分
     address=Field()#地点
     popularity=Field()#名人去过

@@ -8,6 +8,7 @@ from scrapy.http import Request
 from douban.items import WdjItem
 from douban.utils.util_opt import *
 from selenium import webdriver
+import random
 
 
 
@@ -97,10 +98,11 @@ class WdjSpider(CrawlSpider):
 
 
 if __name__ == "__main__":
-    #br = webdriver.Firefox()
-    br = webdriver.PhantomJS()
+    br = webdriver.Firefox()
+    #br = webdriver.Chrome()
+    #br = webdriver.PhantomJS()
     #br.get('http://www.wandoujia.com/tag/%E5%BD%B1%E9%9F%B3%E5%9B%BE%E5%83%8F')
-    br.get('http://www.wandoujia.com/tag/%E5%BD%B1%E9%9F%B3%E5%9B%BE%E5%83%8F')
+    br.get('http://www.wandoujia.com/tag/%E4%BD%93%E8%82%B2%E6%A0%BC%E6%96%97')
     time.sleep(10)
     page = 0
     init_num = 24
@@ -128,7 +130,7 @@ if __name__ == "__main__":
             for appInd in range(start,len(appName_list)):
                 print appName_list[appInd].get_text()
             link.click()
-            time.sleep(10)
+            time.sleep(random.randint(5,10))
             page = page + 1
 
         except:
